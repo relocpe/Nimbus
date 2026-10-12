@@ -3,7 +3,9 @@ name: Build macOS Universal
 on:
   push:
     branches: [master, nimbus-minibar]
+    paths-ignore: ['**.md', 'docs/**']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
 
 jobs:
