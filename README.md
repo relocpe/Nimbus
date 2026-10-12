@@ -1,5 +1,7 @@
 # Nimbus
 
+[![Build](https://github.com/samevamp/Nimbus/actions/workflows/macos.yml/badge.svg?branch=master)](https://github.com/samevamp/Nimbus/actions/workflows/macos.yml)
+
 Меню-бар приложение для macOS, которое запускает обход DPI (для Discord и YouTube) одной кнопкой. Иконка-облако в строке меню, по клику открывается небольшая панель (HUD): включить и выключить сервис, выбрать стратегию, посмотреть логи.
 
 Требования: macOS 14 или новее, сборка universal (Apple Silicon и Intel). Для запуска сервиса нужен пароль администратора.
