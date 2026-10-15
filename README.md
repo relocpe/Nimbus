@@ -1,14 +1,3 @@
-# Nimbus
-
-[![Build](https://github.com/samevamp/Nimbus/actions/workflows/macos.yml/badge.svg?branch=master)](https://github.com/samevamp/Nimbus/actions/workflows/macos.yml)
-
-Меню-бар приложение для мака, которое включает обход DPI для Discord и YouTube одной кнопкой. Облачко в строке меню, кликнул, нажал «Запустить».
-
-Это доработка [Flowseal/zapret-mac-discord-youtube](https://github.com/Flowseal/zapret-mac-discord-youtube): движок и стратегии оттуда, а оболочку (панель, тест стратегий, автообновление) я переделал под себя. Сам движок это [bol-van/zapret](https://github.com/bol-van/zapret).
-
-Нужен macOS 14+, при запуске сервиса спросит пароль админа.
-
-Что есть: запуск и остановка, две точки (доступны ли сейчас discord.com и youtube.com), выбор из 21 стратегии (по умолчанию `general-simple-fake`), тест стратегий в «Ещё», свои списки доменов, логи, автозапуск и автообновление из релизов. Выход из приложения сервис не останавливает, только кнопка «Остановить».
 
 ## Установка
 
