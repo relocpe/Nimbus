@@ -12,60 +12,46 @@ on:
       - "v*"
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: macos-14
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
     steps:
-      - name: Find latest successful macOS Universal run
-        id: find-run
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Build
+        run: bash ./macos/build.sh
+
+      - name: Check archive
         run: |
-          RUN_ID=$(gh api \
-            "repos/${{ github.repository }}/actions/workflows/macos.yml/runs?status=success&per_page=1" \
-            --jq '.workflow_runs[0].id')
-
-          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "No successful workflow run found"
-            exit 1
-          fi
-
-          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          echo "Using workflow run: $RUN_ID"
-
-      - name: Download artifact
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir artifact
-
-          gh run download "${{ steps.find-run.outputs.run_id }}" \
-            --repo "${{ github.repository }}" \
-            --name "Nimbus-macOS-universal" \
-            --dir artifact
-
-          ls -la artifact
-
-      - name: Create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: |
-          unzip -p artifact/Nimbus-macOS-universal.zip Nimbus.app/Contents/Info.plist > /tmp/Nimbus-Info.plist
-          APP_VERSION=$(python3 -c 'import plistlib; print(plistlib.load(open("/tmp/Nimbus-Info.plist", "rb"))["CFBundleShortVersionString"])')
+          ZIP=dist/Nimbus-macOS-universal.zip
+          test -s "$ZIP"
+          unzip -p "$ZIP" Nimbus.app/Contents/Info.plist > /tmp/Nimbus-Info.plist
+          APP_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /tmp/Nimbus-Info.plist)
           TAG_VERSION=$(printf '%s' "$TAG" | sed -E 's/^[vV]//; s/-.*$//')
-
           if [ "$APP_VERSION" != "$TAG_VERSION" ]; then
             echo "App version $APP_VERSION does not match tag $TAG"
             exit 1
           fi
+          lipo -archs build/macos/Nimbus.app/Contents/MacOS/Nimbus
+          lipo build/macos/Nimbus.app/Contents/MacOS/Nimbus -verify_arch x86_64 arm64
+          lipo build/macos/Nimbus.app/Contents/Resources/Payload/bin/utunws -verify_arch x86_64 arm64
 
-          gh release create "$TAG" \
-            artifact/Nimbus-macOS-universal.zip \
-            --repo "${{ github.repository }}" \
-            --title "Nimbus $TAG" \
-            --generate-notes
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/Nimbus-macOS-universal.zip --clobber --repo "${{ github.repository }}"
+          else
+            gh release create "$TAG" dist/Nimbus-macOS-universal.zip \
+              --repo "${{ github.repository }}" \
+              --title "Nimbus $TAG" \
+              --generate-notes
+          fi
