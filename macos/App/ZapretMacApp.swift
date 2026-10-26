@@ -91,7 +91,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try initializeUserData()
             strategies = try loadStrategies()
         } catch {
-            showError(error.localizedDescription)
+            // showError is async; terminating right after it would quit before the alert is shown
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.alertStyle = .critical
+            alert.messageText = "Nimbus"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
             NSApp.terminate(nil)
             return
         }
