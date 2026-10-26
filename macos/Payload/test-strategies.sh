@@ -42,7 +42,7 @@ restore() {
     else
         /bin/sh "$SOURCE/stop.sh" >/dev/null 2>&1 || true
     fi
-    /usr/sbin/chown "$TEST_UID:$TEST_GID" "$REPORT" 2>/dev/null || true
+    /usr/sbin/chown -h "$TEST_UID:$TEST_GID" "$REPORT" 2>/dev/null || true
     /bin/chmod 644 "$REPORT" 2>/dev/null || true
     /bin/rm -f "$PROGRESS" "$CANCEL"
     /bin/rm -rf "$TMP"
@@ -56,7 +56,7 @@ run_user() {
 
 set_progress() {
     printf '%s\n' "$1" >"$PROGRESS"
-    /usr/sbin/chown "$TEST_UID:$TEST_GID" "$PROGRESS" 2>/dev/null || true
+    /usr/sbin/chown -h "$TEST_UID:$TEST_GID" "$PROGRESS" 2>/dev/null || true
 }
 
 cancel_requested() {
@@ -197,7 +197,7 @@ www.gstatic.com'
 : >"$REPORT"
 : >"$LIVE"
 : >"$BESTFILE"
-/usr/sbin/chown "$TEST_UID:$TEST_GID" "$LIVE" "$BESTFILE" 2>/dev/null || true
+/usr/sbin/chown -h "$TEST_UID:$TEST_GID" "$LIVE" "$BESTFILE" 2>/dev/null || true
 set_progress 'Подготовка'
 /bin/sh "$SOURCE/stop.sh" >/dev/null 2>&1 || true
 INDEX=0
@@ -276,7 +276,7 @@ while IFS="$TAB" read -r STRATEGY_ID STRATEGY_NAME; do
         if cancel_requested; then CANCELLED=1; break; fi
         printf '%-34s %s\n' "$STRATEGY_NAME" 'ошибка запуска' >>"$REPORT"
         printf '%s\terr\t0\t0\t0\t0\n' "$STRATEGY_NAME" >>"$LIVE"
-        /usr/sbin/chown "$TEST_UID:$TEST_GID" "$LIVE" 2>/dev/null || true
+        /usr/sbin/chown -h "$TEST_UID:$TEST_GID" "$LIVE" 2>/dev/null || true
         continue
     fi
     INDEX=0
@@ -321,7 +321,7 @@ EOF
     if [ "$TLS13" -eq 1 ]; then TLS13_TEXT="$TLS13_OK/$AVAILABLE_COUNT"; else TLS13_TEXT='-'; fi
     printf '%-34s %7s %7s %7s %7s %7s\n' "$STRATEGY_NAME" "$SCORE/$TOTAL" "$PING_OK/$AVAILABLE_COUNT" "$HTTP_OK/$AVAILABLE_COUNT" "$TLS12_OK/$AVAILABLE_COUNT" "$TLS13_TEXT" >>"$REPORT"
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$STRATEGY_NAME" "$SCORE" "$TOTAL" "$PING_OK" "$HTTP_OK" "$TLS12_OK" >>"$LIVE"
-    /usr/sbin/chown "$TEST_UID:$TEST_GID" "$LIVE" 2>/dev/null || true
+    /usr/sbin/chown -h "$TEST_UID:$TEST_GID" "$LIVE" 2>/dev/null || true
     if [ "$SCORE" -gt "$BEST_SCORE" ] || { [ "$SCORE" -eq "$BEST_SCORE" ] && [ "$TLS_SCORE" -gt "$BEST_TLS" ]; }; then
         BEST_SCORE=$SCORE
         BEST_TLS=$TLS_SCORE
@@ -341,5 +341,5 @@ else
     printf '\nЛучшая: не определена\n' >>"$REPORT"
     printf 'Лучшая: не определена\n' >"$BESTFILE"
 fi
-/usr/sbin/chown "$TEST_UID:$TEST_GID" "$BESTFILE" "$LIVE" 2>/dev/null || true
+/usr/sbin/chown -h "$TEST_UID:$TEST_GID" "$BESTFILE" "$LIVE" 2>/dev/null || true
 printf 'Готово\n'

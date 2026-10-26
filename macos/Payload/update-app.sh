@@ -62,10 +62,11 @@ fi
 /bin/rm -f "$ERROR_FILE"
 if [ "$WAS_RUNNING" = 1 ]; then
     if ! /bin/sh "$TARGET_APP/Contents/Resources/Payload/install.sh" "$TARGET_APP/Contents/Resources/Payload" "$DATA_ROOT"; then
-        echo 'Приложение обновлено, но не удалось перезапустить Nimbus. Запустите его из меню ещё раз.' > "$ERROR_FILE"
-        /usr/sbin/chown "$USER_UID:$USER_GID" "$ERROR_FILE"
+        # noclobber: O_EXCL, so a symlink planted in the user-writable DATA_ROOT is not followed by root
+        ( set -C; echo 'Приложение обновлено, но не удалось перезапустить Nimbus. Запустите его из меню ещё раз.' > "$ERROR_FILE" ) 2>/dev/null || true
+        /usr/sbin/chown -h "$USER_UID:$USER_GID" "$ERROR_FILE" 2>/dev/null || true
     fi
 fi
 reopen
-/usr/sbin/chown "$USER_UID:$USER_GID" "$DATA_ROOT/update.log" >/dev/null 2>&1 || true
+/usr/sbin/chown -h "$USER_UID:$USER_GID" "$DATA_ROOT/update.log" >/dev/null 2>&1 || true
 /bin/rm -rf "$WORK_ROOT"

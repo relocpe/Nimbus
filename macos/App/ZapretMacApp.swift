@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var iconPhase: Double = 0
     private var noticeTimer: Timer?
 
-    private let releaseURL = URL(string: "https://api.github.com/repos/samevamp/Nimbus/releases")!
+    private let releaseURL = URL(string: "https://api.github.com/repos/relocpe/Nimbus/releases")!
     private let releaseAssetName = "Nimbus-macOS-universal.zip"
 
     private var dataRoot: URL {
@@ -91,7 +91,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try initializeUserData()
             strategies = try loadStrategies()
         } catch {
-            showError(error.localizedDescription)
+            // showError is async; terminating right after it would quit before the alert is shown
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.alertStyle = .critical
+            alert.messageText = "Nimbus"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
             NSApp.terminate(nil)
             return
         }
@@ -414,7 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openGitHub() {
-        if let url = URL(string: "https://github.com/samevamp/Nimbus") {
+        if let url = URL(string: "https://github.com/relocpe/Nimbus") {
             NSWorkspace.shared.open(url)
         }
     }
