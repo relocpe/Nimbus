@@ -11,7 +11,7 @@
 
 ## Установка
 
-1. Скачайте `Nimbus-macOS-universal.zip` из [релизов](https://github.com/samevamp/Nimbus/releases).
+1. Скачайте `Nimbus-macOS-universal.zip` из [релизов](https://github.com/relocpe/Nimbus/releases).
 2. Распакуйте архив и переместите `Nimbus.app` в папку «Программы».
 3. Приложение подписано ad-hoc. При первом запуске откройте его через ПКМ → «Открыть» или снимите карантин:
 
@@ -44,7 +44,7 @@
 ## Сборка
 
 ```bash
-git clone https://github.com/samevamp/Nimbus.git
+git clone https://github.com/relocpe/Nimbus.git
 cd Nimbus
 ./macos/build.sh
 ```
