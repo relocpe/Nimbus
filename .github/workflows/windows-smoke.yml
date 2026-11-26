@@ -81,3 +81,24 @@ jobs:
         with:
           name: smoke-defender
           path: out/
+
+  vpn-sim:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build
+        shell: pwsh
+        run: ./windows/build.ps1
+      - name: Split-tunnel VPN adapter simulation
+        shell: pwsh
+        run: ./.github/scripts/win-vpn-sim.ps1 -ExePath "$PWD\dist\Nimbus-Windows-x64.exe" -Out "$PWD\out"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-vpn-sim
+          path: out/
+          if-no-files-found: ignore
