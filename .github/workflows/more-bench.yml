@@ -37,7 +37,7 @@ jobs:
           build macos/App bench-nopre "-D EAGER"
           mkdir -p nostage
           cp macos/App/*.swift nostage/
-          sed -i 's/init(model: HUDModel, eager: Bool = false)/init(model: HUDModel, eager: Bool = true)/' nostage/NimbusHUD.swift
+          sed -i '' 's/init(model: HUDModel, eager: Bool = false)/init(model: HUDModel, eager: Bool = true)/' nostage/NimbusHUD.swift
           build nostage bench-nostage "-D PREWARM -D EAGER"
       - name: Bench
         run: |
