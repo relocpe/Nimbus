@@ -86,6 +86,10 @@ struct BenchHUD {
         model.versionTitle = "Версия 1.6.0"
 
         let controller = HUDController(model: model)
+        #if PREWARM
+        controller.prewarm()
+        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+        #endif
         guard let screen = NSScreen.main else { print("no screen"); exit(1) }
         let visible = screen.visibleFrame
         let anchor = NSRect(x: visible.midX - 12, y: visible.maxY, width: 24, height: 24)
