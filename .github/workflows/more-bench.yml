@@ -7,7 +7,7 @@ on:
     branches: [ci-more]
 
 env:
-  BASE: 71be853
+  BASE: 41a95bb
 
 jobs:
   macos:
@@ -38,11 +38,7 @@ jobs:
         run: |
           export RB_USE_BINARY_ARCHIVE=0 RB_DISABLE_GPU=1
           mkdir -p out
-          for i in 1 2; do
-            NIMBUS_BENCH=build ./bench-before | tee "out/build-before-$i.txt"
-            NIMBUS_BENCH=build ./bench-after | tee "out/build-after-$i.txt"
-          done
-          for i in 1 2 3; do
+          for i in 1 2 3 4; do
             ./bench-before | tee "out/before-$i.txt"
             ./bench-after | tee "out/after-$i.txt"
           done
