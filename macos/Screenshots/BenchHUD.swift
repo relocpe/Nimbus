@@ -192,6 +192,44 @@ struct BenchHUD {
             ("diagnostics", { AnyView(DiagnosticsPage(model: model)) }),
             ("editor", { AnyView(EditorPage(model: model)) }),
         ]
+        // cost of single components, 20 of each in a stack
+        struct Parts: View {
+            @ObservedObject var model: HUDModel
+            let kind: String
+            @State var text = ""
+            var body: some View {
+                VStack(spacing: 0) {
+                    ForEach(0..<20, id: \.self) { i in
+                        switch kind {
+                        case "text": Text("Строка \(i)").font(NB.body)
+                        case "icon": RowIcon(name: "bolt")
+                        case "keycap": Keycap("⌘", "K")
+                        case "meta": MetaText(text: "21 стратегий")
+                        case "row": ActionRow(icon: "bolt", title: "Подобрать", action: {}) { Keycap("⌘", "F") }
+                        case "rowplain": ActionRow(icon: "bolt", title: "Подобрать", action: {}) { EmptyView() }
+                        case "input": PanelInput(placeholder: "Поиск", text: $text, trailing: { EmptyView() })
+                        case "switch": SwitchRow(icon: "bolt", title: "Параметр", isOn: i % 2 == 0, action: {})
+                        case "reveal": Text("Строка \(i)").reveal(i)
+                        case "label": SectionLabel(title: "Действия")
+                        default: EmptyView()
+                        }
+                    }
+                }
+            }
+        }
+        print("20 of each component, ms to build + lay out (1st … 4th)")
+        for kind in ["text", "icon", "keycap", "meta", "rowplain", "row", "input", "switch", "reveal", "label"] {
+            var times: [Double] = []
+            for _ in 0..<4 {
+                let t0 = CFAbsoluteTimeGetCurrent()
+                let host = NSHostingView(rootView: Parts(model: model, kind: kind).frame(width: NB.width).fixedSize(horizontal: false, vertical: true))
+                host.frame = NSRect(x: 0, y: 0, width: NB.width, height: 1200)
+                host.layoutSubtreeIfNeeded()
+                times.append((CFAbsoluteTimeGetCurrent() - t0) * 1000)
+                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            }
+            print(kind.padding(toLength: 12, withPad: " ", startingAt: 0) + times.map { String(format: "%6.1f", $0) }.joined(separator: " "))
+        }
         print("page build + layout, ms per fresh view (1st … 6th)")
         for (name, make) in pages {
             var times: [Double] = []
