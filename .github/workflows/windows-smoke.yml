@@ -63,6 +63,7 @@ jobs:
 
   defender:
     runs-on: windows-2022
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - name: Get exe

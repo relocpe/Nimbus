@@ -40,16 +40,23 @@ Get-MpThreat | ForEach-Object { Say "THREAT $($_.ThreatName)" }
 
 # 2) launch via ShellExecute (like Explorer) with MOTW
 Say "--- launch via ShellExecute with MOTW"
-$p = Start-Process -FilePath $copy -PassThru
-Start-Sleep 12
-$p.Refresh()
-Say "alive=$(-not $p.HasExited) exit=$(if ($p.HasExited) { $p.ExitCode })"
+# ShellExecute blocks on the "Open File - Security Warning" dialog, so launch from a job
+$job = Start-Job -ScriptBlock { param($f) Start-Process -FilePath $f } -ArgumentList $copy
+Start-Sleep 10
 Shot "motw-launch"
+Say "job state: $($job.State)"
+Get-Process Nimbus* -ErrorAction SilentlyContinue | ForEach-Object { Say "running: $($_.ProcessName) pid=$($_.Id)" }
+try {
+  Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+  $root = [Windows.Automation.AutomationElement]::RootElement
+  foreach ($w in $root.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition)) { Say "uia top-level: '$($w.Current.Name)' class=$($w.Current.ClassName) pid=$($w.Current.ProcessId)" }
+} catch { Say "uia failed: $_" }
+Stop-Job $job -ErrorAction SilentlyContinue; Remove-Job $job -Force -ErrorAction SilentlyContinue
 Get-Process | Where-Object { $_.MainWindowTitle } | ForEach-Object { Say "window: $($_.ProcessName) '$($_.MainWindowTitle)'" }
 
 # 3) scan extracted engine files with real-time on
 Say "--- engine files after run"
-Stop-Process -Name Nimbus* -Force -ErrorAction SilentlyContinue
+Get-Process | Where-Object { $_.ProcessName -like 'Nimbus*' -or $_.MainWindowTitle -like '*Security Warning*' } | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep 2
 $self = Start-Process -FilePath $copy -ArgumentList '--self-test', "$PWD\$Out\self-test.txt" -Wait -PassThru
 Say "self-test exit=$($self.ExitCode)"
