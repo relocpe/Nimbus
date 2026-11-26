@@ -123,8 +123,14 @@ struct BenchHUD {
         let meter = FrameMeter()
         meter.start(on: screen)
         meter.watchRunLoop()
+        var resizes: [String: [Double]] = [:]
+        var resizePhase = ""
+        NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: controller.window, queue: .main) { n in
+            if let w = n.object as? NSWindow { resizes[resizePhase, default: []].append(Double(w.frame.height)) }
+        }
         func step(_ name: String, _ seconds: Double, _ action: () -> Void) {
             meter.begin(name)
+            resizePhase = name
             action()
             RunLoop.current.run(until: Date().addingTimeInterval(seconds))
         }
@@ -156,6 +162,11 @@ struct BenchHUD {
             let long = list.filter { $0 > budget }.count
             print(name.padding(toLength: 15, withPad: " ", startingAt: 0)
                   + String(format: " %6d  %6.1f  %6.1f  %6.1f  %4d", list.count, avg, p95, sorted.last!, long))
+        }
+        print("window resizes per phase (heights):")
+        for name in meter.order {
+            guard let list = resizes[name], !list.isEmpty else { continue }
+            print("  \(name): \(list.count)  " + list.prefix(14).map { String(Int($0)) }.joined(separator: " "))
         }
         print("main-thread turns (ms)  turns  total   p95    max   >16ms")
         for name in meter.order {
