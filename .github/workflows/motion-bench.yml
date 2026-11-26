@@ -39,3 +39,46 @@ jobs:
         with:
           name: motion-${{ matrix.os }}
           path: out/
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Typecheck the app
+        run: |
+          SDK=$(xcrun --sdk macosx --show-sdk-path)
+          xcrun swiftc -typecheck -parse-as-library -sdk "$SDK" -target "$(uname -m)-apple-macos14.0" \
+            macos/App/ZapretMacApp.swift macos/App/NimbusDesign.swift macos/App/NimbusHUD.swift macos/App/NimbusSupport.swift
+      - name: Build before (v1.6.0-beta.2) and after
+        run: |
+          SDK=$(xcrun --sdk macosx --show-sdk-path)
+          mkdir -p before
+          for f in NimbusDesign NimbusHUD NimbusSupport; do git show v1.6.0-beta.2:macos/App/$f.swift > before/$f.swift; done
+          build() {
+            xcrun swiftc -O -parse-as-library -sdk "$SDK" -target "$(uname -m)-apple-macos14.0" \
+              -framework AppKit -framework SwiftUI -framework QuartzCore \
+              "$1/NimbusDesign.swift" "$1/NimbusHUD.swift" "$1/NimbusSupport.swift" macos/Screenshots/BenchHUD.swift -o "$2"
+          }
+          build before bench-before
+          build macos/App bench-after
+      - name: Bench
+        run: |
+          if [ "$(uname -m)" = x86_64 ]; then export RB_USE_BINARY_ARCHIVE=0 RB_DISABLE_GPU=1; fi
+          mkdir -p out
+          for i in 1 2; do
+            NIMBUS_BENCH_REFRESH=old ./bench-before | tee "out/before-oldrefresh-$i.txt"
+            NIMBUS_BENCH_REFRESH=new ./bench-before | tee "out/before-$i.txt"
+            NIMBUS_BENCH_REFRESH=new ./bench-after | tee "out/after-$i.txt"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: motion-${{ matrix.os }}
+          path: out/
