@@ -28,10 +28,30 @@ final class FrameMeter: NSObject {
 
     func stop() { link?.invalidate() }
 
+    private(set) var busy: [String: [Double]] = [:]
+    private var turnStart: CFAbsoluteTime = 0
+    private var observer: CFRunLoopObserver?
+
+    /// How long the main thread works per run loop turn: a long turn is a visible hitch whatever the display rate.
+    func watchRunLoop() {
+        let obs = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue | CFRunLoopActivity.beforeWaiting.rawValue, true, 0) { [unowned self] _, activity in
+            let now = CFAbsoluteTimeGetCurrent()
+            if activity == .afterWaiting {
+                turnStart = now
+            } else if turnStart > 0, !phase.isEmpty {
+                busy[phase, default: []].append((now - turnStart) * 1000)
+            }
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), obs, .commonModes)
+        observer = obs
+    }
+
     func begin(_ name: String) {
         phase = name
-        samples[name] = []
-        order.append(name)
+        if samples[name] == nil {
+            samples[name] = []
+            order.append(name)
+        }
     }
 
     @objc private func tick(_ link: CADisplayLink) {
@@ -98,6 +118,7 @@ struct BenchHUD {
 
         let meter = FrameMeter()
         meter.start(on: screen)
+        meter.watchRunLoop()
         func step(_ name: String, _ seconds: Double, _ action: () -> Void) {
             meter.begin(name)
             action()
@@ -105,8 +126,14 @@ struct BenchHUD {
         }
         RunLoop.current.run(until: Date().addingTimeInterval(0.5))
         step("open", 1.2) { controller.show(below: anchor, on: screen) }
-        step("page-more", 1.0) { withAnimation(Motion.smooth) { model.page = .more } }
-        step("page-back", 1.0) { withAnimation(Motion.smooth) { model.page = .main } }
+        for _ in 0..<5 {
+            step("page-more", 0.9) { withAnimation(Motion.smooth) { model.page = .more } }
+            step("page-back", 0.9) { withAnimation(Motion.smooth) { model.page = .main } }
+        }
+        for page in [HUDPage.lists, .logs, .diagnostics] {
+            step("page-\(page.rawValue)", 0.9) { withAnimation(Motion.smooth) { model.page = page } }
+            step("page-back", 0.9) { withAnimation(Motion.smooth) { model.page = .main } }
+        }
         step("palette-open", 0.8) { model.openPalette() }
         step("palette-close", 0.6) { model.closePalette() }
         step("idle", 2.0) {}
@@ -125,6 +152,14 @@ struct BenchHUD {
             let long = list.filter { $0 > budget }.count
             print(name.padding(toLength: 15, withPad: " ", startingAt: 0)
                   + String(format: " %6d  %6.1f  %6.1f  %6.1f  %4d", list.count, avg, p95, sorted.last!, long))
+        }
+        print("main-thread turns (ms)  turns  total   p95    max   >16ms")
+        for name in meter.order {
+            let list = (meter.busy[name] ?? []).sorted()
+            guard !list.isEmpty else { continue }
+            let p95 = list[min(list.count - 1, Int((Double(list.count) * 0.95).rounded(.up)) - 1)]
+            print(name.padding(toLength: 22, withPad: " ", startingAt: 0)
+                  + String(format: " %5d  %6.0f  %5.1f  %5.1f  %5d", list.count, list.reduce(0, +), p95, list.last!, list.filter { $0 > 16 }.count))
         }
     }
 
