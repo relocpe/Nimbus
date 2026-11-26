@@ -184,10 +184,14 @@ struct BenchHUD {
 
     /// How long a page takes to build and lay out in a fresh hosting view (no window, no rendering).
     static func buildCosts(_ model: HUDModel) {
-        let pages: [(String, () -> AnyView)] = [
-            ("main", { AnyView(MainPage(model: model)) }),
-            ("more (all)", { AnyView(MorePage(model: model, eager: true)) }),
-            ("more (1st turn)", { AnyView(MorePage(model: model)) }),
+        var pages: [(String, () -> AnyView)] = [("main", { AnyView(MainPage(model: model)) })]
+        #if EAGER
+        pages.append(("more (all)", { AnyView(MorePage(model: model, eager: true)) }))
+        pages.append(("more (1st turn)", { AnyView(MorePage(model: model)) }))
+        #else
+        pages.append(("more", { AnyView(MorePage(model: model)) }))
+        #endif
+        pages += [
             ("lists", { AnyView(ListsPage(model: model)) }),
             ("logs", { AnyView(LogsPage(model: model)) }),
             ("diagnostics", { AnyView(DiagnosticsPage(model: model)) }),
