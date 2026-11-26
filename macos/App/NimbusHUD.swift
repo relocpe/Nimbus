@@ -77,6 +77,12 @@ struct EditorCaret: Equatable {
 }
 
 final class HUDModel: ObservableObject {
+    /// Writes only real changes. Every @Published write re-renders the panel, even with the same value,
+    /// and the once-a-second refresh used to restart the body mid-animation.
+    func update<T: Equatable>(_ key: ReferenceWritableKeyPath<HUDModel, T>, _ value: T) {
+        if self[keyPath: key] != value { self[keyPath: key] = value }
+    }
+
     @Published var running = false
     @Published var busy = false
     @Published var testing = false
@@ -586,18 +592,28 @@ final class HUDController {
         let top = panelTop + Self.margin
         let target = NSRect(x: x, y: top - wanted - 2 * Self.margin, width: width, height: wanted + 2 * Self.margin)
 
+        let current = panel.frame
+        if panel.isVisible, animated, shrinkWork == nil, abs(current.minX - target.minX) < 0.5,
+           abs(current.maxY - target.maxY) < 0.5, abs(current.height - target.height) < 0.5 {
+            // already the right size: don't touch the window mid-animation
+            return
+        }
         shrinkWork?.cancel()
         shrinkWork = nil
-        let current = panel.frame
+        // while visible, let the next Core Animation commit draw the resized window instead of
+        // forcing a synchronous redraw in the middle of a SwiftUI transition
+        let display = !panel.isVisible || !animated
         if !panel.isVisible || !animated || target.height >= current.height - 0.5 {
             // growing (or first show): resize at once; the panel is top-aligned, so the extra room is transparent
-            panel.setFrame(target, display: true)
+            panel.setFrame(target, display: display)
         } else {
             // shrinking: keep the window until the page transition has played, then cut the empty space
-            panel.setFrame(NSRect(x: target.minX, y: top - current.height, width: width, height: current.height), display: true)
+            panel.setFrame(NSRect(x: target.minX, y: top - current.height, width: width, height: current.height), display: false)
             let work = DispatchWorkItem { [weak self] in
-                guard let self, self.panel.isVisible else { return }
-                self.panel.setFrame(target, display: true)
+                guard let self else { return }
+                self.shrinkWork = nil
+                guard self.panel.isVisible else { return }
+                self.panel.setFrame(target, display: false)
             }
             shrinkWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + (Motion.reduce ? 0.05 : 0.36), execute: work)
@@ -700,7 +716,6 @@ struct NimbusHUDView: View {
             }
             .scaleEffect(model.presented ? 1 : 0.96, anchor: .top)
             .opacity(model.presented ? 1 : 0)
-            .blur(radius: model.presented || Motion.reduce ? 0 : 8)
             .offset(y: model.presented || Motion.reduce ? 0 : -6)
             .padding(HUDController.margin)
             .frame(width: NB.width + 2 * HUDController.margin)
@@ -721,6 +736,9 @@ struct NimbusHUDView: View {
             .id(model.openEpoch)
             .animation(Motion.smooth, value: model.page)
         }
+        // blur-in on the content only: blurring the material and shadow too meant an offscreen pass
+        // over the whole window on every frame of the open animation
+        .blur(radius: model.presented || Motion.reduce ? 0 : 8)
         .frame(width: NB.width)
         .overlay {
             if model.paletteOpen {
@@ -748,9 +766,10 @@ struct NimbusHUDView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: NB.radius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: NB.radius, style: .continuous).strokeBorder(NB.line2, lineWidth: 1))
-        .compositingGroup()
-        .shadow(color: .black.opacity(0.28), radius: 16, y: 10)
-        .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
+        .background(ShapeShadow(cornerRadius: NB.radius, layers: [
+            .init(opacity: 0.28, radius: 16, y: 10),
+            .init(opacity: 0.12, radius: 3, y: 1),
+        ]))
         .foregroundStyle(NB.t1)
         .font(NB.body)
     }
@@ -2226,7 +2245,7 @@ struct CommandBar: View {
         .background(NB.solid)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(NB.line2, lineWidth: 1))
-        .shadow(color: .black.opacity(0.35), radius: 18, y: 12)
+        .background(ShapeShadow(cornerRadius: 10, layers: [.init(opacity: 0.35, radius: 18, y: 12)]))
         .animation(Motion.snappy, value: model.paletteQuery)
         .onAppear { DispatchQueue.main.async { focused = true } }
     }
