@@ -71,6 +71,7 @@ internal static class Motion
         {
             element.RenderTransform = Transform.Identity;
             element.Effect = null;
+            element.CacheMode = null;
             return;
         }
         var translate = new TranslateTransform(dx, dy);
@@ -87,12 +88,55 @@ internal static class Motion
         {
             var effect = new BlurEffect { Radius = blur, RenderingBias = RenderingBias.Performance };
             element.Effect = effect;
+            // while it moves, blur a cached bitmap of the element instead of re-rendering its tree every frame
+            var cache = new BitmapCache { SnapsToDevicePixels = true, RenderAtScale = DeviceScale(element) };
+            element.CacheMode = cache;
             var anim = FromTo(blur, 0, kind, delay);
-            // a lingering blur effect softens text: drop it once the animation has landed
-            anim.Completed += (_, _) => { if (element.Effect == effect) element.Effect = null; };
+            // a lingering blur or cache softens text: drop both once the animation has landed
+            anim.Completed += (_, _) =>
+            {
+                if (element.Effect == effect) element.Effect = null;
+                if (element.CacheMode == cache) element.CacheMode = null;
+            };
             effect.BeginAnimation(BlurEffect.RadiusProperty, anim);
         }
     }
+
+    /// <summary>
+    /// WPF ticks animations at 60 fps unless told otherwise; on a 120/144 Hz screen that halves the motion.
+    /// Call once at startup.
+    /// </summary>
+    public static void UseDisplayRate()
+    {
+        var hz = 60;
+        var dc = GetDC(IntPtr.Zero);
+        if (dc != IntPtr.Zero)
+        {
+            var reported = GetDeviceCaps(dc, 116 /* VREFRESH */);
+            ReleaseDC(IntPtr.Zero, dc);
+            if (reported > 1) hz = Math.Clamp(reported, 60, 240);
+        }
+        try
+        {
+            Timeline.DesiredFrameRateProperty.OverrideMetadata(typeof(Timeline), new FrameworkPropertyMetadata { DefaultValue = (int?)hz });
+        }
+        catch (ArgumentException)
+        {
+            // already set for this process
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hwnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
+
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    private static extern int GetDeviceCaps(IntPtr dc, int index);
+
+    private static double DeviceScale(UIElement element) =>
+        PresentationSource.FromVisual(element)?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
 
     /// <summary>Rows fade + lift in one after another (22 ms apart).</summary>
     public static void Stagger(Panel? panel, double start = 0)

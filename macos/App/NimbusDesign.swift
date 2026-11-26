@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 // Nimbus design system: colors, the offset-N mark, motion and small controls.
@@ -287,7 +288,7 @@ struct MarkView: View {
 
     var body: some View {
         let target = MarkParams.target(state)
-        TimelineView(.animation(minimumInterval: 1 / 60, paused: state != .checking || Motion.reduce)) { timeline in
+        TimelineView(.animation(minimumInterval: nil, paused: state != .checking || Motion.reduce)) { timeline in
             let now = timeline.date.timeIntervalSinceReferenceDate
             let band: CGFloat? = state == .checking ? (Motion.reduce ? 5 : MarkGeometry.band(at: now, start: sweepStart)) : nil
             MarkShapeView(fill: target.fill, outline: target.outline, gap: target.gap, band: band, color: color)
@@ -347,9 +348,11 @@ private struct MarkShapeView: View, Animatable {
 }
 
 /// Drives the menu-bar glyph: springs between states at display rate, idles when settled.
-final class StatusGlyphAnimator {
+/// Ticks come from a display link on the status button, so frames line up with the screen's refresh
+/// (60 or 120 Hz) instead of drifting against it like a 60 Hz Timer did.
+final class StatusGlyphAnimator: NSObject {
     private weak var button: NSStatusBarButton?
-    private var timer: Timer?
+    private var link: CADisplayLink?
     private var current = MarkParams.target(.off)
     private var velocity = (fill: CGFloat(0), outline: CGFloat(0), gap: CGFloat(0))
     private var state: MarkState = .off
@@ -358,6 +361,7 @@ final class StatusGlyphAnimator {
 
     init(button: NSStatusBarButton) {
         self.button = button
+        super.init()
         button.image = MarkGeometry.templateImage(current)
         button.imagePosition = .imageOnly
     }
@@ -367,7 +371,7 @@ final class StatusGlyphAnimator {
         let previous = state
         state = next
         if next == .checking {
-            sweepStart = Date().timeIntervalSinceReferenceDate
+            sweepStart = CACurrentMediaTime()
         }
         if previous == .checking, next != .checking, let band = current.band {
             // continue the wipe from where the sweep band currently is
@@ -385,21 +389,23 @@ final class StatusGlyphAnimator {
     }
 
     private func start() {
-        guard timer == nil else { return }
-        lastTick = Date().timeIntervalSinceReferenceDate
-        let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in self?.tick() }
-        t.tolerance = 0.004
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+        guard link == nil, let button else { return }
+        lastTick = CACurrentMediaTime()
+        let l = button.displayLink(target: self, selector: #selector(displayTick(_:)))
+        l.add(to: .main, forMode: .common)
+        link = l
     }
 
     private func stop() {
-        timer?.invalidate()
-        timer = nil
+        link?.invalidate()
+        link = nil
     }
 
-    private func tick() {
-        let now = Date().timeIntervalSinceReferenceDate
+    @objc private func displayTick(_ link: CADisplayLink) {
+        tick(now: link.targetTimestamp)
+    }
+
+    private func tick(now: TimeInterval) {
         let dt = CGFloat(min(1.0 / 30.0, max(1.0 / 240.0, now - lastTick)))
         lastTick = now
         let target = MarkParams.target(state)
@@ -582,6 +588,73 @@ struct RowIcon: View {
     }
 }
 
+/// Drop shadow drawn by Core Animation from a fixed rounded-rect path. SwiftUI's `.shadow` blurs the
+/// view's own pixels, so it was recomputed on every frame of every animation inside the panel;
+/// this one is only redrawn when the size changes.
+struct ShapeShadow: NSViewRepresentable {
+    struct Layer {
+        var opacity: Float
+        var radius: CGFloat
+        var y: CGFloat
+    }
+
+    var cornerRadius: CGFloat
+    var layers: [Layer]
+
+    func makeNSView(context: Context) -> ShadowHost { ShadowHost() }
+
+    func updateNSView(_ view: ShadowHost, context: Context) {
+        view.configure(cornerRadius: cornerRadius, layers: layers)
+    }
+}
+
+final class ShadowHost: NSView {
+    private var cornerRadius: CGFloat = 0
+    private var shadows: [CALayer] = []
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.masksToBounds = false
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func configure(cornerRadius: CGFloat, layers: [ShapeShadow.Layer]) {
+        self.cornerRadius = cornerRadius
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        while shadows.count < layers.count {
+            let l = CALayer()
+            l.shadowColor = NSColor.black.cgColor
+            layer?.addSublayer(l)
+            shadows.append(l)
+        }
+        for (l, spec) in zip(shadows, layers) {
+            l.shadowOpacity = spec.opacity
+            l.shadowRadius = spec.radius
+            l.shadowOffset = CGSize(width: 0, height: -spec.y) // AppKit layers are y-up
+        }
+        CATransaction.commit()
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let r = min(cornerRadius, bounds.width / 2, bounds.height / 2)
+        let path = CGPath(roundedRect: bounds, cornerWidth: r, cornerHeight: r, transform: nil)
+        for l in shadows {
+            l.frame = bounds
+            l.shadowPath = path
+        }
+        CATransaction.commit()
+    }
+}
+
 /// Visual effect material behind the panel tint.
 struct PanelMaterial: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
@@ -613,9 +686,9 @@ struct LatencyBars: View {
                 let v = padded[i]
                 let last = i == count - 1
                 let h: CGFloat = v.isFinite ? 3 + CGFloat((min(v, hi) - lo) / (hi - lo)) * 23 : 2
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                BarShape(height: grown ? h : 2)
                     .fill(last && v.isFinite ? (alert ? NB.warn : NB.accent) : NB.line2)
-                    .frame(width: 4, height: grown ? h : 2)
+                    .frame(width: 4, height: 26)
                     .animation(Motion.smooth.delay(Motion.reduce ? 0 : Double(i) * 0.014), value: grown)
                     .animation(Motion.smooth, value: h)
                 if i < count - 1 { Spacer(minLength: 0) }
@@ -626,10 +699,25 @@ struct LatencyBars: View {
     }
 }
 
+/// A bottom-aligned bar whose height animates as path data, so growing bars don't re-run layout every frame.
+private struct BarShape: Shape {
+    var height: CGFloat
+
+    var animatableData: CGFloat {
+        get { height }
+        set { height = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let h = min(max(height, 0), rect.height)
+        return Path(roundedRect: CGRect(x: rect.minX, y: rect.maxY - h, width: rect.width, height: h), cornerRadius: min(1, h / 2), style: .continuous)
+    }
+}
+
 /// Small arc spinner used while a diagnostic check is running.
 struct ArcSpinner: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 60, paused: Motion.reduce)) { t in
+        TimelineView(.animation(minimumInterval: nil, paused: Motion.reduce)) { t in
             let angle = Motion.reduce ? 0 : (t.date.timeIntervalSinceReferenceDate * 480).truncatingRemainder(dividingBy: 360)
             ZStack {
                 Circle().stroke(NB.line2, lineWidth: 1.5)

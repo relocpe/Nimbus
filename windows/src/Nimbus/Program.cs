@@ -22,6 +22,10 @@ internal static class Program
         {
             return SelfTest.Run(args[1]);
         }
+        if (args.Length >= 2 && args[0] == "--motion-bench")
+        {
+            return MotionBench.Run(args[1]);
+        }
         if (args.Length >= 2 && args[0] == "--render-screens")
         {
             return Screens.Render(args[1]);
@@ -45,6 +49,7 @@ internal static class Program
         }
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        Motion.UseDisplayRate();
         Theme.Apply(app.Resources);
         var controller = new AppController();
         app.DispatcherUnhandledException += (_, e) =>
