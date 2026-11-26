@@ -86,6 +86,10 @@ struct BenchHUD {
         model.versionTitle = "Версия 1.6.0"
 
         let controller = HUDController(model: model)
+        if ProcessInfo.processInfo.environment["NIMBUS_BENCH"] == "build" {
+            buildCosts(model)
+            return
+        }
         #if PREWARM
         controller.prewarm()
         RunLoop.current.run(until: Date().addingTimeInterval(1.5))
@@ -175,6 +179,31 @@ struct BenchHUD {
             let p95 = list[min(list.count - 1, Int((Double(list.count) * 0.95).rounded(.up)) - 1)]
             print(name.padding(toLength: 22, withPad: " ", startingAt: 0)
                   + String(format: " %5d  %6.0f  %5.1f  %5.1f  %5d", list.count, list.reduce(0, +), p95, list.last!, list.filter { $0 > 16 }.count))
+        }
+    }
+
+    /// How long a page takes to build and lay out in a fresh hosting view (no window, no rendering).
+    static func buildCosts(_ model: HUDModel) {
+        let pages: [(String, () -> AnyView)] = [
+            ("main", { AnyView(MainPage(model: model)) }),
+            ("more", { AnyView(MorePage(model: model)) }),
+            ("lists", { AnyView(ListsPage(model: model)) }),
+            ("logs", { AnyView(LogsPage(model: model)) }),
+            ("diagnostics", { AnyView(DiagnosticsPage(model: model)) }),
+            ("editor", { AnyView(EditorPage(model: model)) }),
+        ]
+        print("page build + layout, ms per fresh view (1st … 6th)")
+        for (name, make) in pages {
+            var times: [Double] = []
+            for _ in 0..<6 {
+                let t0 = CFAbsoluteTimeGetCurrent()
+                let host = NSHostingView(rootView: make().frame(width: NB.width).fixedSize(horizontal: false, vertical: true))
+                host.frame = NSRect(x: 0, y: 0, width: NB.width, height: 800)
+                host.layoutSubtreeIfNeeded()
+                times.append((CFAbsoluteTimeGetCurrent() - t0) * 1000)
+                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            }
+            print(name.padding(toLength: 12, withPad: " ", startingAt: 0) + times.map { String(format: "%6.1f", $0) }.joined(separator: " "))
         }
     }
 
