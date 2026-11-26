@@ -58,7 +58,7 @@ Get-Process | Where-Object { $_.MainWindowTitle } | ForEach-Object { Say "window
 Say "--- engine files after run"
 Get-Process | Where-Object { $_.ProcessName -like 'Nimbus*' -or $_.MainWindowTitle -like '*Security Warning*' } | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep 2
-$self = Start-Process -FilePath $copy -ArgumentList '--self-test', "$PWD\$Out\self-test.txt" -Wait -PassThru
+$self = Start-Process -FilePath $ExePath -ArgumentList '--self-test', "$PWD\$Out\self-test.txt" -Wait -PassThru
 Say "self-test exit=$($self.ExitCode)"
 Get-ChildItem C:\ProgramData\Nimbus\bin -ErrorAction SilentlyContinue | ForEach-Object { Say ("  {0} {1}" -f $_.Name, $_.Length) }
 Start-MpScan -ScanType CustomScan -ScanPath C:\ProgramData\Nimbus
