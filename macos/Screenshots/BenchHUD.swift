@@ -130,8 +130,8 @@ struct BenchHUD {
         }
         RunLoop.current.run(until: Date().addingTimeInterval(0.5))
         step("open", 1.2) { controller.show(below: anchor, on: screen) }
-        for _ in 0..<5 {
-            step("page-more", 0.9) { withAnimation(Motion.smooth) { model.page = .more } }
+        for i in 0..<5 {
+            step(i == 0 ? "page-more (1st)" : "page-more", 0.9) { withAnimation(Motion.smooth) { model.page = .more } }
             step("page-back", 0.9) { withAnimation(Motion.smooth) { model.page = .main } }
         }
         for page in [HUDPage.lists, .logs, .diagnostics] {
