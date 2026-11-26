@@ -33,6 +33,8 @@ internal partial class HudWindow : Window
     {
         this.model = model;
         InitializeComponent();
+        AllowsTransparency = !Backdrop.UseComposition;
+        if (!AllowsTransparency) SourceInitialized += (_, _) => Backdrop.Apply(this);
         DataContext = model;
         BuildSkeleton();
         model.PropertyChanged += OnModelChanged;
@@ -43,6 +45,16 @@ internal partial class HudWindow : Window
             if (IsVisible) { Reposition(); UpdateTestBar(); }
         };
         PreviewKeyDown += OnPreviewKeyDown;
+        PreviewMouseDown += (_, e) =>
+        {
+            // the transparent shadow margin is part of the window: a click there counts as outside
+            var p = e.GetPosition(Root);
+            if (p.X < 0 || p.Y < 0 || p.X > Root.ActualWidth || p.Y > Root.ActualHeight)
+            {
+                e.Handled = true;
+                HideHud();
+            }
+        };
         ticker.Tick += (_, _) => model.Tick();
         Loaded += (_, _) =>
         {
@@ -143,6 +155,7 @@ internal partial class HudWindow : Window
             Root.Opacity = 1;
             Root.RenderTransform = Transform.Identity;
             Root.Effect = null;
+            Root.CacheMode = null;
             if (!model.Testing) model.Page = HudPage.Main;
         };
         if (!Motion.Reduce)
@@ -672,15 +685,16 @@ internal partial class HudWindow : Window
     private void UpdateTestBar()
     {
         if (TestBarFill == null) return;
-        var host = TestBarFill.Parent as FrameworkElement;
-        var width = host?.ActualWidth ?? 0;
+        var width = TestBarFill.ActualWidth;
         if (width <= 0)
         {
-            TestBarFill.Width = 4;
+            // just made visible: measure first
+            if (model.ShowTestBar) Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => { if (TestBarFill.ActualWidth > 0) UpdateTestBar(); });
             return;
         }
-        var target = Math.Max(4, width * model.TestFraction);
-        TestBarFill.BeginAnimation(WidthProperty, Motion.To(target, SpringKind.Smooth));
+        // scale, not Width: the fill moves without a layout pass per frame
+        var target = Math.Max(4 / width, Math.Clamp(model.TestFraction, 0, 1));
+        TestBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, Motion.To(target, SpringKind.Smooth));
     }
 }
 
