@@ -1,0 +1,62 @@
+name: Windows smoke test
+
+# Launches the Windows exes on real Windows runners and keeps screenshots and logs.
+# Manual only (plus pushes to the ci-windows-smoke branch); it never touches releases.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to download the exes from
+        default: v1.6.0-beta.2
+      source:
+        description: release (download from the tag) or build (build this branch)
+        default: release
+  push:
+    branches: [ci-windows-smoke]
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+        variant: [full, lite, lite-noruntime]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        if: ${{ inputs.source == 'build' }}
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Get exe
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force exe | Out-Null
+          $v = '${{ matrix.variant }}'
+          $name = if ($v -eq 'full') { 'Nimbus-Windows-x64.exe' } else { 'Nimbus-Windows-x64-lite.exe' }
+          if ('${{ inputs.source }}' -eq 'build') {
+            ./windows/build.ps1
+            Copy-Item "dist/$name" exe/
+          } else {
+            $tag = '${{ inputs.tag }}'; if (-not $tag) { $tag = 'v1.6.0-beta.2' }
+            gh release download $tag --repo ${{ github.repository }} --pattern $name --dir exe
+          }
+          Get-ChildItem exe
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $v = '${{ matrix.variant }}'
+          $name = if ($v -eq 'full') { 'Nimbus-Windows-x64.exe' } else { 'Nimbus-Windows-x64-lite.exe' }
+          ./.github/scripts/win-smoke.ps1 -Variant $v -ExePath "$PWD\exe\$name" -Out "$PWD\out"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.os }}-${{ matrix.variant }}
+          path: out/
+          if-no-files-found: ignore
