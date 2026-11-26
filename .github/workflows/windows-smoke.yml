@@ -60,3 +60,23 @@ jobs:
           name: smoke-${{ matrix.os }}-${{ matrix.variant }}
           path: out/
           if-no-files-found: ignore
+
+  defender:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get exe
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ inputs.tag }}'; if (-not $tag) { $tag = 'v1.6.0-beta.2' }
+          gh release download $tag --repo ${{ github.repository }} --pattern 'Nimbus-Windows-x64.exe' --dir exe
+      - name: Defender and download-warning test
+        shell: pwsh
+        run: ./.github/scripts/win-extra.ps1 -ExePath "$PWD\exe\Nimbus-Windows-x64.exe" -Out out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-defender
+          path: out/
