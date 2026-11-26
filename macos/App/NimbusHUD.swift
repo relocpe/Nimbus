@@ -530,7 +530,7 @@ final class HUDController {
         warmed = true
         let model = self.model
         let pages: [() -> AnyView] = [
-            { AnyView(MorePage(model: model)) },
+            { AnyView(MorePage(model: model, eager: true)) },
             { AnyView(ListsPage(model: model)) },
             { AnyView(LogsPage(model: model)) },
             { AnyView(DiagnosticsPage(model: model)) },
@@ -1435,7 +1435,12 @@ struct ServiceRow: View {
 
 struct MorePage: View {
     @ObservedObject var model: HUDModel
-    @State private var built = 0
+    @State private var built: Int
+
+    init(model: HUDModel, eager: Bool = false) {
+        _model = ObservedObject(wrappedValue: model)
+        _built = State(initialValue: eager ? 2 : 0)
+    }
 
     private func visible(_ title: String) -> Bool {
         let q = model.moreQuery.trimmingCharacters(in: .whitespaces).lowercased()

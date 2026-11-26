@@ -186,7 +186,8 @@ struct BenchHUD {
     static func buildCosts(_ model: HUDModel) {
         let pages: [(String, () -> AnyView)] = [
             ("main", { AnyView(MainPage(model: model)) }),
-            ("more", { AnyView(MorePage(model: model)) }),
+            ("more (all)", { AnyView(MorePage(model: model, eager: true)) }),
+            ("more (1st turn)", { AnyView(MorePage(model: model)) }),
             ("lists", { AnyView(ListsPage(model: model)) }),
             ("logs", { AnyView(LogsPage(model: model)) }),
             ("diagnostics", { AnyView(DiagnosticsPage(model: model)) }),
