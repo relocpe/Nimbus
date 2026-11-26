@@ -26,10 +26,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force out | Out-Null
-          foreach ($i in 1..3) {
-            $p = Start-Process -FilePath bench-bin/Nimbus.exe -ArgumentList '--motion-bench', "$PWD\out\bench-$i.txt" -Wait -PassThru
-            Write-Host "--- run $i (exit $($p.ExitCode))"
-            Get-Content "out\bench-$i.txt"
+          foreach ($mode in 'layered', 'composed') {
+            $env:NIMBUS_WINDOW = $mode
+            foreach ($i in 1..3) {
+              $p = Start-Process -FilePath bench-bin/Nimbus.exe -ArgumentList '--motion-bench', "$PWD\out\$mode-$i.txt" -Wait -PassThru
+              Write-Host "--- $mode run $i (exit $($p.ExitCode))"
+              Get-Content "out\$mode-$i.txt"
+            }
           }
       - uses: actions/upload-artifact@v4
         if: always()
