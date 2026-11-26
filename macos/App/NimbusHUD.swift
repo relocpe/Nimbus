@@ -503,6 +503,7 @@ final class HUDController {
         panel.becomesKeyOnlyIfNeeded = false
         panel.isReleasedWhenClosed = false
         panel.contentViewController = hosting
+        model.$page.dropFirst().removeDuplicates().sink { [weak self] _ in self?.prepareForPageSwitch() }.store(in: &subscriptions)
         model.requestClose = { [weak self] in self?.close() }
         model.onPanelHeight = { [weak self] height in
             guard let self, height > 1, abs(height - self.panelHeight) > 0.5 else { return }
@@ -574,24 +575,40 @@ final class HUDController {
         relayout(animated: true)
     }
 
-    func relayout(animated: Bool) {
+    /// Window frame for a panel of the given height: top under the menu bar, clamped to the screen.
+    private func windowFrame(forPanelHeight height: CGFloat) -> (frame: NSRect, top: CGFloat)? {
         if let button = statusButton, let buttonWindow = button.window {
             anchorRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
             anchorScreen = buttonWindow.screen
         }
-        guard let anchor = anchorRect else { return }
+        guard let anchor = anchorRect else { return nil }
         let screen = anchorScreen ?? NSScreen.main
         let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: anchor.minY)
         let width = NB.width + 2 * Self.margin
         // the panel starts 6 pt under the menu bar; the window adds the transparent shadow margin
         let panelTop = min(anchor.minY, visible.maxY) - 6
         let maxPanelHeight = max(panelTop - visible.minY - 8, 120)
-        let wanted = panelHeight > 1 ? min(panelHeight, maxPanelHeight) : min(Self.provisionalHeight, maxPanelHeight)
+        let wanted = min(height, maxPanelHeight)
         var x = anchor.midX - width / 2
         x = min(max(x, visible.minX + 8 - Self.margin), visible.maxX - width + Self.margin - 8)
         let top = panelTop + Self.margin
-        let target = NSRect(x: x, y: top - wanted - 2 * Self.margin, width: width, height: wanted + 2 * Self.margin)
+        return (NSRect(x: x, y: top - wanted - 2 * Self.margin, width: width, height: wanted + 2 * Self.margin), top)
+    }
 
+    /// A page switch is about to run: make the window tall enough for any page now, so the resize
+    /// (and the relayout of the hosted view it causes) happens before the animation starts instead of
+    /// in its first frame. The surplus is transparent and is cut again once the transition has played.
+    private func prepareForPageSwitch() {
+        guard panel.isVisible, !closing, let (target, _) = windowFrame(forPanelHeight: Self.provisionalHeight) else { return }
+        guard target.height > panel.frame.height + 0.5 else { return }
+        shrinkWork?.cancel()
+        shrinkWork = nil
+        panel.setFrame(target, display: false)
+    }
+
+    func relayout(animated: Bool) {
+        guard let (target, top) = windowFrame(forPanelHeight: panelHeight > 1 ? panelHeight : Self.provisionalHeight) else { return }
+        let width = target.width
         let current = panel.frame
         if panel.isVisible, animated, shrinkWork == nil, abs(current.minX - target.minX) < 0.5,
            abs(current.maxY - target.maxY) < 0.5, abs(current.height - target.height) < 0.5 {
