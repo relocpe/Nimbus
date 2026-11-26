@@ -1,0 +1,38 @@
+name: Motion bench
+
+# Plays the panel animations on real Windows runners and keeps the frame intervals.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci-motion]
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build
+        shell: pwsh
+        run: dotnet build windows/src/Nimbus/Nimbus.csproj -c Release -p:SelfContained=false -p:AllowMissingEngine=true -o bench-bin
+      - name: Bench
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          foreach ($i in 1..3) {
+            $p = Start-Process -FilePath bench-bin/Nimbus.exe -ArgumentList '--motion-bench', "$PWD\out\bench-$i.txt" -Wait -PassThru
+            Write-Host "--- run $i (exit $($p.ExitCode))"
+            Get-Content "out\bench-$i.txt"
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: motion-${{ matrix.os }}
+          path: out/
