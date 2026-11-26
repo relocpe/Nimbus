@@ -513,6 +513,35 @@ final class HUDController {
         }
     }
 
+    private var warmed = false
+
+    /// Builds and draws each page once in a view that is never shown. The first real open of a page
+    /// used to pay for loading fonts and symbol images, creating the AppKit text fields and the first
+    /// layout in the middle of the transition. One page per run loop turn, so this never hitches.
+    func prewarm() {
+        guard !warmed else { return }
+        warmed = true
+        let model = self.model
+        let pages: [() -> AnyView] = [
+            { AnyView(MorePage(model: model)) },
+            { AnyView(ListsPage(model: model)) },
+            { AnyView(LogsPage(model: model)) },
+            { AnyView(DiagnosticsPage(model: model)) },
+            { AnyView(EditorPage(model: model)) },
+        ]
+        func warm(_ index: Int) {
+            guard index < pages.count else { return }
+            let host = NSHostingView(rootView: pages[index]().frame(width: NB.width).fixedSize(horizontal: false, vertical: true))
+            host.frame = NSRect(x: 0, y: 0, width: NB.width, height: 800)
+            host.layoutSubtreeIfNeeded()
+            if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+                host.cacheDisplay(in: host.bounds, to: rep)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { warm(index + 1) }
+        }
+        warm(0)
+    }
+
     /// The window that hosts the panel (for the screenshot renderer).
     var window: NSPanel { panel }
 

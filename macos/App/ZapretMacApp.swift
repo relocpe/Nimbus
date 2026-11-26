@@ -167,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.sendAction(on: [.leftMouseUp])
         }
         hud = HUDController(model: hudModel)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.hud.prewarm() }
         hudModel.toggleService = { [weak self] in self?.toggleService() }
         hudModel.selectStrategy = { [weak self] id in self?.selectStrategy(id: id) }
         hudModel.selectIPSet = { [weak self] mode in self?.selectIPSet(mode: mode) }
